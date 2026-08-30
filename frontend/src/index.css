@@ -1,0 +1,112 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * { box-sizing: border-box; }
+  html { font-size: 14px; }
+  body {
+    /* Cyber-Amber Sentinel: obsidian base with a subtle warm-glow telemetry vignette */
+    background:
+      radial-gradient(1200px 600px at 15% -10%, rgba(255,122,0,0.06), transparent 60%),
+      radial-gradient(900px 500px at 100% 0%, rgba(255,170,0,0.05), transparent 55%),
+      #080C14;
+    background-attachment: fixed;
+    color: #E6EDF6;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  ::selection { background: rgba(255,122,0,0.30); color: #fff; }
+  ::-webkit-scrollbar { width: 7px; height: 7px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgba(255,122,0,0.22); border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: rgba(255,122,0,0.40); }
+}
+
+@layer components {
+  .card {
+    @apply bg-surface-2 border border-border rounded-lg;
+    box-shadow: 0 1px 0 rgba(255,122,0,0.06) inset, 0 8px 24px -18px rgba(0,0,0,0.9);
+  }
+  /* Accent card with a warmer amber rim-glow for HUD panels */
+  .card-glow {
+    @apply card;
+    box-shadow: 0 0 0 1px rgba(255,122,0,0.18), 0 0 28px -10px rgba(255,122,0,0.35);
+  }
+  .btn {
+    @apply inline-flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium
+           transition-all duration-150 cursor-pointer select-none;
+  }
+  .btn-primary {
+    @apply btn text-[#120A00] font-semibold;
+    background: linear-gradient(180deg, #FFAA00 0%, #FF7A00 100%);
+    box-shadow: 0 0 14px -3px rgba(255,122,0,0.55);
+  }
+  .btn-primary:hover { filter: brightness(1.08); box-shadow: 0 0 20px -3px rgba(255,122,0,0.7); }
+  .btn-ghost {
+    @apply btn bg-transparent hover:bg-white/5 text-gray-300 hover:text-white
+           border border-border hover:border-border-bright;
+  }
+  .btn-danger {
+    @apply btn bg-[#F43F5E]/15 hover:bg-[#F43F5E]/25 text-[#FF7A8A] border border-[#F43F5E]/30;
+  }
+  .input {
+    @apply w-full bg-surface-3 border border-border rounded-md px-3 py-2 text-sm
+           text-gray-100 placeholder-gray-500
+           focus:outline-none focus:border-accent-amber/60 focus:ring-1 focus:ring-accent-amber/30
+           transition-colors;
+  }
+  .label {
+    @apply text-xs font-medium text-gray-400 uppercase tracking-wider;
+  }
+  .badge {
+    @apply inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold;
+  }
+}
+
+/* ── Severity badges ──────────────────────────────────────────────────────── */
+.sev-critical { @apply badge; background: rgba(244,63,94,0.15);  color: #FF6B7D; border: 1px solid rgba(244,63,94,0.30); }
+.sev-high     { @apply badge; background: rgba(255,122,0,0.15);  color: #FF9A3D; border: 1px solid rgba(255,122,0,0.30); }
+.sev-medium   { @apply badge; background: rgba(255,170,0,0.15);  color: #FFC24D; border: 1px solid rgba(255,170,0,0.30); }
+.sev-low      { @apply badge; background: rgba(56,189,248,0.15); color: #7DD3FC; border: 1px solid rgba(56,189,248,0.28); }
+.sev-info     { @apply badge; background: rgba(100,116,139,0.15);color: #94A3B8; border: 1px solid rgba(100,116,139,0.28); }
+
+/* ── Status pills (emerald passed · amber warning · crimson critical) ──────── */
+.status-pending   { @apply badge; background: rgba(100,116,139,0.15); color: #94A3B8; border: 1px solid rgba(100,116,139,0.28); }
+.status-running   { @apply badge; background: rgba(255,122,0,0.15);   color: #FF9A3D; border: 1px solid rgba(255,122,0,0.30); @apply animate-pulse-slow; }
+.status-completed { @apply badge; background: rgba(16,185,129,0.15);  color: #34D399; border: 1px solid rgba(16,185,129,0.30); }
+.status-failed    { @apply badge; background: rgba(244,63,94,0.15);   color: #FF6B7D; border: 1px solid rgba(244,63,94,0.30); }
+.status-cancelled { @apply badge; background: rgba(100,116,139,0.12); color: #64748B; border: 1px solid rgba(100,116,139,0.22); }
+
+/* ── Code blocks ──────────────────────────────────────────────────────────── */
+.code-block {
+  @apply font-mono text-xs bg-surface-0 border border-border rounded p-3 overflow-x-auto;
+}
+
+/* ── Light mode (first pass) ───────────────────────────────────────────────── */
+html.light body {
+  background:
+    radial-gradient(1200px 600px at 15% -10%, rgba(255,122,0,0.05), transparent 60%),
+    radial-gradient(900px 500px at 100% 0%, rgba(255,170,0,0.04), transparent 55%),
+    #F1F5F9;
+  color: #0F172A;
+}
+html.light .bg-surface-0 { background-color: #F1F5F9 !important; }
+html.light .bg-surface-1 { background-color: #FFFFFF !important; }
+html.light .bg-surface-2 { background-color: #FFFFFF !important; }
+html.light .bg-surface-3 { background-color: #F8FAFC !important; }
+html.light .bg-surface-4 { background-color: #E2E8F0 !important; }
+html.light .border-border { border-color: rgba(15,23,42,0.12) !important; }
+html.light .card { box-shadow: 0 1px 2px rgba(15,23,42,0.06), 0 8px 24px -18px rgba(15,23,42,0.25); }
+
+/* Text: flip the common dark-on-light grays */
+html.light .text-white     { color: #0F172A !important; }
+html.light .text-gray-100,
+html.light .text-gray-200,
+html.light .text-gray-300  { color: #1E293B !important; }
+html.light .text-gray-400  { color: #475569 !important; }
+html.light .text-gray-500  { color: #64748B !important; }
+html.light .text-gray-600  { color: #94A3B8 !important; }
+
+/* Surface tints that used white-on-dark hover */
+html.light .hover\:bg-white\/5:hover { background-color: rgba(15,23,42,0.04) !important; }

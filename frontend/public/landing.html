@@ -1,0 +1,806 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>harbore — Continuous Exposure Management</title>
+<style>
+  /* self-hosted fonts (SIL OFL) — no external CDN */
+  @font-face{font-family:'Space Grotesk';src:url('/fonts/SpaceGrotesk-Variable.woff2') format('woff2');font-weight:300 700;font-style:normal;font-display:swap}
+  @font-face{font-family:'JetBrains Mono';src:url('/fonts/JetBrainsMono-Regular.woff2') format('woff2');font-weight:400;font-style:normal;font-display:swap}
+  @font-face{font-family:'JetBrains Mono';src:url('/fonts/JetBrainsMono-Medium.woff2') format('woff2');font-weight:500;font-style:normal;font-display:swap}
+  @font-face{font-family:'JetBrains Mono';src:url('/fonts/JetBrainsMono-Bold.woff2') format('woff2');font-weight:700;font-style:normal;font-display:swap}
+
+  :root{
+    --bg:#03060a;
+    --s1:#0B1120;
+    --s2:#0F172A;
+    --s3:#141E33;
+    --cyan:oklch(0.85 0.15 200);
+    --cyan-soft:oklch(0.82 0.14 200);
+    --amber:#FF7A00;
+    --gold:#FFAA00;
+    --line:oklch(0.7 0.1 205 / 0.14);
+    --bd:rgba(255,122,0,.22);
+    --bdb:rgba(255,122,0,.45);
+    --txt:#E6EDF6;
+    --mut:#94A3B8;
+    --mono:'JetBrains Mono',ui-monospace,monospace;
+    --sans:'Space Grotesk',Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{background:var(--bg);color:var(--txt);font-family:var(--sans);overflow-x:hidden}
+  a{color:var(--cyan-soft);text-decoration:none}
+  a:hover{color:oklch(0.93 0.09 200)}
+  @keyframes hbP{0%,100%{opacity:.2}50%{opacity:1}}
+  @keyframes hbFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-11px)}}
+  @keyframes hbScan{0%{transform:translateY(-30vh)}100%{transform:translateY(130vh)}}
+  @keyframes hbMarq{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+  @keyframes bob{0%,100%{transform:translate(-50%,0)}50%{transform:translate(-50%,8px)}}
+
+  /* Hero & Stage Containers */
+  .hb-stage{cursor:none;position:relative;width:100%;min-height:100vh;overflow:hidden;background:var(--bg)}
+  .hb-canvas{position:fixed;inset:0;width:100%;height:100%;display:block;z-index:1;pointer-events:auto}
+  .hb-bloom{position:absolute;left:50%;top:52%;width:min(1500px,145vw);height:min(1500px,145vw);transform:translate(-50%,-50%);pointer-events:none;
+    background:radial-gradient(circle, oklch(0.6 0.16 205 / 0.22) 0%, oklch(0.4 0.14 230 / 0.08) 34%, transparent 64%);z-index:2;transition:opacity 1.8s ease-out}
+  .hb-vignette{position:absolute;inset:0;pointer-events:none;background:radial-gradient(130% 110% at 50% 50%, transparent 32%, var(--bg) 88%);z-index:2}
+  .hb-scanline{position:absolute;left:0;right:0;height:180px;pointer-events:none;
+    background:linear-gradient(to bottom, transparent, oklch(0.75 0.13 200 / 0.04), transparent);animation:hbScan 9s linear infinite;z-index:2;transition:opacity 1.8s ease-out}
+  .hb-scanlines{position:absolute;inset:0;pointer-events:none;background:repeating-linear-gradient(to bottom, rgba(255,255,255,0.02) 0 1px, transparent 1px 4px);z-index:2;transition:opacity 1.8s ease-out}
+
+  .hb-shell{position:relative;z-index:3;display:grid;grid-template-rows:auto 1fr auto;min-height:100vh;pointer-events:none;transition:opacity 1.8s cubic-bezier(0.2, 0.8, 0.2, 1), transform 1.8s ease-out}
+  .hb-shell a, .hb-shell button, .hb-shell .hb-card, .hb-shell .hb-card-2, .content-wrap {pointer-events:auto}
+
+  .hb-head{display:flex;align-items:center;justify-content:space-between;gap:24px;padding:26px 46px;
+    border-bottom:1px solid var(--line);background:linear-gradient(to bottom, rgba(3,6,10,.85), transparent)}
+  .hb-logo{display:flex;align-items:center}
+  .hb-logo img{height:86px;width:auto;display:block;filter:drop-shadow(0 0 30px oklch(0.7 0.16 205 / .5))}
+  .hb-meta{display:flex;align-items:center;gap:26px;font-family:var(--mono);font-size:10.5px;letter-spacing:.16em;color:oklch(0.75 0.03 205)}
+  .hb-meta .row{display:flex;align-items:center;gap:8px}
+  .hb-dot{width:6px;height:6px;border-radius:50%;background:oklch(0.8 0.16 155);box-shadow:0 0 10px oklch(0.8 0.16 155);animation:hbP 2s ease-in-out infinite}
+
+  .hb-body{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,.95fr);align-items:center;gap:48px;padding:56px 46px}
+  .hb-copy{display:flex;flex-direction:column;gap:26px;max-width:660px}
+  .hb-eyebrow{display:inline-flex;align-self:flex-start;align-items:center;gap:11px;padding:8px 15px;
+    border:1px solid oklch(0.8 0.14 200 / .38);background:oklch(0.8 0.14 200 / .09);
+    font-family:var(--mono);font-size:10.5px;letter-spacing:.24em;color:oklch(0.88 0.11 200)}
+  .hb-eyebrow i{width:6px;height:6px;background:var(--cyan);box-shadow:0 0 10px var(--cyan);animation:hbP 1.6s ease-in-out infinite}
+  h1.hb-title{margin:0;font-size:clamp(52px,6.4vw,104px);line-height:.9;font-weight:600;letter-spacing:-.045em;text-wrap:balance}
+  h1.hb-title .ghost{color:transparent;-webkit-text-stroke:1.4px var(--cyan-soft);text-shadow:0 0 42px oklch(0.7 0.16 205 / .55)}
+  .hb-lede{margin:0;max-width:490px;font-size:17px;line-height:1.6;color:oklch(0.8 0.02 210)}
+
+  .hb-cta{display:flex;align-items:center;gap:18px;flex-wrap:wrap;margin-top:6px}
+  .hb-btn{display:inline-flex;align-items:center;gap:14px;padding:18px 38px;background:var(--cyan);color:#03181d;
+    font-size:14px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;
+    box-shadow:0 0 0 1px oklch(0.9 0.13 200 / .6), 0 0 46px oklch(0.8 0.15 200 / .5);transition:.2s;border:none;cursor:pointer}
+  .hb-btn:hover{background:#fff;color:#03181d;box-shadow:0 0 0 1px #fff, 0 0 70px oklch(0.85 0.15 200 / .75)}
+  .hb-btn-ghost{display:inline-flex;align-items:center;gap:11px;padding:18px 26px;border:1px solid oklch(0.75 0.05 205 / .32);
+    font-family:var(--mono);font-size:11.5px;letter-spacing:.18em;color:oklch(0.85 0.03 205);transition:.2s}
+  .hb-btn-ghost:hover{border-color:var(--cyan-soft);color:#fff}
+
+  .hb-stats{display:grid;grid-template-columns:repeat(3,auto);justify-content:start;gap:38px;padding-top:26px;border-top:1px solid oklch(0.7 0.06 205 / .16)}
+  .hb-stats div{display:flex;flex-direction:column;gap:5px}
+  .hb-stats b{font-family:var(--mono);font-size:30px;font-weight:700;letter-spacing:-.03em;color:oklch(0.92 0.1 200)}
+  .hb-stats span{font-family:var(--mono);font-size:10px;letter-spacing:.2em;color:oklch(0.65 0.02 210)}
+
+  .hb-panels{display:flex;flex-direction:column;gap:14px;justify-self:end;width:min(430px,100%)}
+  .hb-card{border:1px solid oklch(0.75 0.09 205 / .24);
+    background:linear-gradient(160deg, oklch(0.24 0.045 215 / .72), oklch(0.14 0.03 225 / .6));
+    backdrop-filter:blur(10px);box-shadow:0 26px 70px rgba(0,0,0,.55);animation:hbFloat 7s ease-in-out infinite}
+  .hb-card-2{border:1px solid oklch(0.75 0.09 205 / .2);background:oklch(0.16 0.03 222 / .66);
+    backdrop-filter:blur(10px);box-shadow:0 20px 60px rgba(0,0,0,.5)}
+  .hb-card-h{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;
+    border-bottom:1px solid oklch(0.75 0.09 205 / .18);font-family:var(--mono);font-size:10px;letter-spacing:.2em;color:oklch(0.78 0.05 205)}
+  .hb-sev{display:flex;flex-direction:column;gap:13px;padding:18px}
+  .hb-sev-row{display:grid;grid-template-columns:74px 1fr 42px;align-items:center;gap:12px}
+  .hb-sev-row .k{font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;color:oklch(0.8 0.02 210)}
+  .hb-track{position:relative;height:5px;background:oklch(0.35 0.03 220 / .7)}
+  .hb-fill{position:absolute;left:0;top:0;height:5px}
+  .hb-sev-row .n{font-family:var(--mono);font-size:11.5px;font-weight:700;text-align:right;color:#fff}
+  .hb-ev{display:grid;grid-template-columns:58px 1fr auto;gap:12px;align-items:center;padding:11px 18px;
+    border-bottom:1px solid oklch(0.6 0.03 210 / .09);font-family:var(--mono);font-size:11px}
+  .hb-ev .t{color:oklch(0.6 0.02 210)}
+  .hb-ev .m{color:oklch(0.9 0.01 210);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .hb-ev .g{letter-spacing:.12em}
+
+  .hb-note{font-family:var(--mono);font-size:9.5px;letter-spacing:.18em;color:oklch(0.62 0.02 210);opacity:.55;margin-top:-12px}
+  .hb-foot{display:flex;align-items:center;border-top:1px solid oklch(0.7 0.08 205 / .16);
+    background:linear-gradient(to top, rgba(3,6,10,.9), transparent);overflow:hidden}
+  .hb-foot-brand{display:flex;align-items:center;gap:11px;flex:0 0 auto;padding:0 28px;background:#04070b;
+    border-right:1px solid oklch(0.7 0.08 205 / .16);align-self:stretch;z-index:2}
+  .hb-foot-brand span{font-family:var(--mono);font-size:10px;letter-spacing:.2em;color:oklch(0.68 0.03 205);white-space:nowrap}
+  .hb-marq-wrap{position:relative;flex:1 1 0;min-width:0;overflow:hidden}
+  .hb-marq{display:flex;width:200%;animation:hbMarq 34s linear infinite}
+  .hb-marq span{display:flex;align-items:center;gap:22px;padding:16px 22px;font-family:var(--mono);
+    font-size:11px;letter-spacing:.22em;color:oklch(0.7 0.04 205);white-space:nowrap}
+  .hb-marq i{color:var(--cyan-soft);font-style:normal}
+  .hb-marq-fade{position:absolute;left:0;top:0;bottom:0;width:56px;pointer-events:none;background:linear-gradient(to right,#04070b,transparent)}
+
+  /* Easter Egg Core HUD Status */
+  .easter-hud{position:absolute;bottom:42px;left:50%;transform:translateX(-50%);z-index:10;display:flex;flex-direction:column;align-items:center;gap:8px;pointer-events:none;transition:opacity .3s}
+  .easter-bar-wrap{width:220px;height:4px;background:rgba(255,255,255,0.08);border-radius:99px;overflow:hidden;border:1px solid rgba(0,229,255,0.2)}
+  .easter-bar{width:0%;height:100%;background:linear-gradient(90deg,#00e5ff,#ff7a00,#ff2a00);transition:width .2s}
+  .easter-text{font-family:var(--mono);font-size:9.5px;letter-spacing:.22em;color:oklch(0.8 0.1 200);text-transform:uppercase}
+  .flash-blind{position:fixed;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:9999;transition:opacity .12s ease-out}
+  .scrollcue{position:absolute;bottom:12px;left:50%;transform:translateX(-50%);color:#5b6b82;font-size:11px;letter-spacing:.24em;font-family:var(--mono);animation:bob 2s ease-in-out infinite;pointer-events:none;z-index:5}
+
+  /* LOWER FEATURE SECTIONS & CARDS */
+  .content-wrap{position:relative;z-index:4;background:transparent;transition:opacity 1.8s ease-out}
+  .section{min-height:90vh;display:flex;align-items:center;justify-content:center;padding:100px 24px;position:relative}
+  .feature-card{max-width:960px;width:100%;display:grid;grid-template-columns:1.1fr 0.9fr;gap:56px;align-items:center;opacity:0;transform:translateY(40px);transition:all .8s cubic-bezier(.2,.7,.2,1);
+    background:linear-gradient(160deg, rgba(15,23,42,.75), rgba(11,17,32,.6));border:1px solid var(--bd);border-radius:24px;padding:48px;backdrop-filter:blur(12px);box-shadow:0 30px 80px rgba(0,0,0,.6)}
+  .feature-card.in{opacity:1;transform:none}
+  .feature-card.alt .art{order:2}
+  .feature-card.alt .text-col{order:1}
+  .kicker{color:var(--amber);font-family:var(--mono);font-weight:700;font-size:12px;letter-spacing:.25em;text-transform:uppercase;margin-bottom:8px}
+  .section h2{font-size:clamp(32px,3.8vw,48px);font-weight:700;letter-spacing:-1px;margin:10px 0 16px;color:#fff;line-height:1.1}
+  .section p{color:var(--mut);font-size:16px;line-height:1.65}
+  .art{aspect-ratio:1;border:1px solid var(--bd);border-radius:20px;background:linear-gradient(160deg,var(--s2),var(--s1));display:grid;place-items:center;box-shadow:0 0 40px -20px rgba(255,122,0,.4) inset,0 20px 60px -30px #000}
+  .chips{display:flex;gap:10px;flex-wrap:wrap;margin-top:22px}
+  .chip{font-family:var(--mono);font-size:11px;padding:6px 12px;border-radius:8px;border:1px solid var(--bd);color:#cbd5e1;background:rgba(255,122,0,.06)}
+  .footer-sub{text-align:center;padding:70px 20px;color:#5b6b82;font-size:13px;font-family:var(--mono);border-top:1px solid rgba(255,122,0,.15);background:#03060a}
+
+  @media (max-width:1080px){
+    .hb-body{grid-template-columns:1fr;padding:40px 24px}
+    .hb-panels{justify-self:stretch;width:100%}
+    .hb-head{padding:20px 24px;flex-wrap:wrap}
+    .hb-logo img{height:64px}
+    .hb-meta{font-size:9.5px;gap:16px}
+    .feature-card{grid-template-columns:1fr;gap:32px;padding:32px}
+    .feature-card.alt .art{order:unset}
+  }
+  @media (max-width:760px){ .hb-stage{cursor:auto} }
+</style>
+</head>
+<body>
+
+<div class="hb-stage" id="hero-stage">
+  <canvas class="hb-canvas" id="hb-globe"></canvas>
+  <div class="flash-blind" id="flash-blind"></div>
+  <div class="hb-bloom" id="hb-bloom"></div>
+  <div class="hb-vignette"></div>
+  <div class="hb-scanline" id="hb-scanline"></div>
+  <div class="hb-scanlines" id="hb-scanlines"></div>
+  
+  <div class="easter-hud" id="easter-hud">
+    <div class="easter-bar-wrap"><div class="easter-bar" id="easter-bar"></div></div>
+    <div class="easter-text" id="easter-text">SENTINEL SPHERE // CLICK CORE (0/10)</div>
+  </div>
+
+  <div class="scrollcue" id="scrollcue">▼ SCROLL TO EXPLORE</div>
+
+  <div class="hb-shell" id="hb-shell">
+    <header class="hb-head">
+      <a class="hb-logo" href="#"><img src="/logo-wordmark.svg" alt="Harbore"></a>
+      <div class="hb-meta">
+        <span class="row"><i class="hb-dot"></i>0 SCANNERS LIVE</span>
+        <span style="opacity:.55">EU-WEST · EU-CENTRAL</span>
+        <a href="#discover">FEATURES</a>
+        <a href="/login" target="_top" onclick="if(window.parent!==window){window.parent.postMessage('harbore:signin','*');return false;}" style="border:1px solid var(--bdb);color:var(--gold);padding:6px 15px;border-radius:20px;font-weight:700;letter-spacing:.09em">SIGN IN &#8594;</a>
+      </div>
+    </header>
+
+    <div class="hb-body">
+      <div class="hb-copy">
+        <div class="hb-eyebrow"><i></i>CONTINUOUS EXPOSURE MANAGEMENT</div>
+        <h1 class="hb-title">Your attack surface,<br><span class="ghost">under one light.</span></h1>
+        <p class="hb-lede">Scanning, certificates, asset discovery and CMDB, and the regulatory evidence for DORA, CRA, NIS2 and PCI DSS. One platform, one truth, no spreadsheets.</p>
+        <div class="hb-cta">
+          <a class="hb-btn" href="/login" target="_top" onclick="if(window.parent!==window){window.parent.postMessage('harbore:signin','*');return false;}">SIGN IN <span style="font-family:var(--mono)">&#8594;</span></a>
+          <a class="hb-btn-ghost" href="#discover">BOOK A WALKTHROUGH</a>
+        </div>
+        <div class="hb-stats">
+          <div><b>0</b><span>ASSETS TRACKED</span></div>
+          <div><b>0</b><span>MEDIAN DETECTION</span></div>
+          <div><b>0</b><span>FRAMEWORKS MAPPED</span></div>
+        </div>
+        <div class="hb-note">// no data yet — sign in to populate</div>
+      </div>
+
+      <div class="hb-panels">
+        <div class="hb-card">
+          <div class="hb-card-h"><span>EXPOSURE BY SEVERITY</span><span style="color:oklch(0.6 0.02 210)">NO DATA</span></div>
+          <div class="hb-sev">
+            <div class="hb-sev-row"><span class="k">CRITICAL</span><span class="hb-track"><span class="hb-fill" style="width:0%;background:oklch(0.7 0.2 25)"></span></span><span class="n">0</span></div>
+            <div class="hb-sev-row"><span class="k">HIGH</span><span class="hb-track"><span class="hb-fill" style="width:0%;background:oklch(0.78 0.16 60)"></span></span><span class="n">0</span></div>
+            <div class="hb-sev-row"><span class="k">MEDIUM</span><span class="hb-track"><span class="hb-fill" style="width:0%;background:oklch(0.85 0.15 200)"></span></span><span class="n">0</span></div>
+            <div class="hb-sev-row"><span class="k">CERT EXP</span><span class="hb-track"><span class="hb-fill" style="width:0%;background:oklch(0.8 0.14 300)"></span></span><span class="n">0</span></div>
+          </div>
+        </div>
+
+        <div class="hb-card-2">
+          <div class="hb-card-h" style="justify-content:flex-start"><span>EVENT STREAM</span></div>
+          <div class="hb-ev" style="border-bottom:none"><span class="m" style="opacity:.5">No events yet</span></div>
+        </div>
+      </div>
+    </div>
+
+    <footer class="hb-foot">
+      <div class="hb-foot-brand">
+        <span>SECURE · MANAGE · COMPLY</span>
+      </div>
+      <div class="hb-marq-wrap">
+        <div class="hb-marq" id="hb-marq"></div>
+        <div class="hb-marq-fade"></div>
+      </div>
+    </footer>
+  </div>
+</div>
+
+<!-- LOWER SMOOTH CONTENT SECTION -->
+<div class="content-wrap" id="content-wrap">
+  <section class="section" id="discover">
+    <div class="feature-card alt">
+      <div class="text-col">
+        <div class="kicker">Discover</div>
+        <h2>Map your whole estate</h2>
+        <p>Agent-based network discovery finds every host — servers, laptops, the sleeping IoT device in the corner — then builds an editable network diagram and an ISO 27001 CMDB.</p>
+        <div class="chips">
+          <span class="chip">Network diagram</span>
+          <span class="chip">CMDB</span>
+          <span class="chip">Owner · criticality</span>
+        </div>
+      </div>
+      <div class="art">
+        <svg width="120" height="120" viewBox="0 0 24 24" fill="none" stroke="#FF7A00" stroke-width="1.3">
+          <circle cx="12" cy="12" r="3"/><circle cx="5" cy="5" r="2"/><circle cx="19" cy="5" r="2"/><circle cx="5" cy="19" r="2"/><circle cx="19" cy="19" r="2"/>
+          <path d="M7 7l3 3M17 7l-3 3M7 17l3-3M17 17l-3-3"/>
+        </svg>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="feature-card">
+      <div class="text-col">
+        <div class="kicker">Scan</div>
+        <h2>Nine modules, in parallel</h2>
+        <p>Asset, TLS, vulnerability, crawler, auth, fuzzer, PCI, passive and compliance modules run together — findings enriched with CVSS, OWASP and CWE, streamed live.</p>
+        <div class="chips">
+          <span class="chip">CVSS</span>
+          <span class="chip">OWASP</span>
+          <span class="chip">CWE</span>
+          <span class="chip">Live console</span>
+        </div>
+      </div>
+      <div class="art">
+        <svg width="120" height="120" viewBox="0 0 24 24" fill="none" stroke="#FF7A00" stroke-width="1.3">
+          <path d="M12 2l8 4v6c0 5-3.5 8-8 10-4.5-2-8-5-8-10V6z"/>
+          <path d="M9 12l2 2 4-4"/>
+        </svg>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="feature-card alt">
+      <div class="text-col">
+        <div class="kicker">Comply</div>
+        <h2>Frameworks, mapped for you</h2>
+        <p>Findings map straight onto PCI DSS 4.0.1, NIS2, DORA and CRA controls — readiness at a glance, gaps drilled to the exact finding, reports you can download per framework.</p>
+        <div class="chips">
+          <span class="chip">PCI DSS 4.0.1</span>
+          <span class="chip">NIS2</span>
+          <span class="chip">DORA</span>
+          <span class="chip">CRA</span>
+        </div>
+      </div>
+      <div class="art">
+        <svg width="120" height="120" viewBox="0 0 24 24" fill="none" stroke="#FF7A00" stroke-width="1.3">
+          <path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+        </svg>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="feature-card">
+      <div class="text-col">
+        <div class="kicker">Report</div>
+        <h2>Board-ready in a click</h2>
+        <p>Generate a polished ISMS report from your own template — pick the version, owner and approvers, and the findings drop straight in. Word and PDF, on demand.</p>
+        <div class="chips">
+          <span class="chip">DOCX template</span>
+          <span class="chip">Signatories</span>
+          <span class="chip">PDF</span>
+        </div>
+      </div>
+      <div class="art">
+        <svg width="120" height="120" viewBox="0 0 24 24" fill="none" stroke="#FF7A00" stroke-width="1.3">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h8M8 9h2"/>
+        </svg>
+      </div>
+    </div>
+  </section>
+
+  <div class="footer-sub">
+    harbore · Continuous Exposure Management &amp; Regulatory Compliance Platform
+  </div>
+</div>
+
+<!-- Three.js + Postprocessing Modules -->
+<script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+    }
+  }
+</script>
+
+<script type="module">
+  import * as THREE from 'three';
+  import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+  import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+  import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+
+  // Smooth Card Scroll Intersection Observer
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('in');
+      }
+    });
+  }, { threshold: 0.2 });
+  document.querySelectorAll('.feature-card').forEach(el => observer.observe(el));
+
+  // Marquee duplication
+  const words = ['VULNERABILITY SCANNING','CERTIFICATE LIFECYCLE','ASSET DISCOVERY','CMDB','DORA','CRA','NIS2','PCI DSS'];
+  const marq = document.getElementById('hb-marq');
+  words.concat(words).forEach(w => {
+    const s = document.createElement('span');
+    s.innerHTML = `${w} <i>&#9670;</i>`;
+    marq.appendChild(s);
+  });
+
+  // Scene & Canvas Setup
+  const canvas = document.getElementById('hb-globe');
+  const easterBar = document.getElementById('easter-bar');
+  const easterText = document.getElementById('easter-text');
+  const flashBlind = document.getElementById('flash-blind');
+
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+  camera.position.set(0, 0, 8.5);
+
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'high-performance' });
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.1;
+
+  const composer = new EffectComposer(renderer);
+  composer.addPass(new RenderPass(scene, camera));
+
+  const bloomPass = new UnrealBloomPass(
+    new THREE.Vector2(window.innerWidth, window.innerHeight),
+    1.2,
+    0.4,
+    0.2
+  );
+  composer.addPass(bloomPass);
+
+  // Background Permanent Ambient Stars
+  const bgStarsGeo = new THREE.BufferGeometry();
+  const starCount = 650;
+  const starPos = new Float32Array(starCount * 3);
+  for(let i=0; i<starCount*3; i+=3) {
+    starPos[i] = (Math.random() - 0.5) * 28;
+    starPos[i+1] = (Math.random() - 0.5) * 28;
+    starPos[i+2] = (Math.random() - 0.5) * 20 - 5;
+  }
+  bgStarsGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
+  const bgStarsMat = new THREE.PointsMaterial({ color: 0x3d6688, size: 0.035, transparent: true, opacity: 0.5 });
+  const bgStars = new THREE.Points(bgStarsGeo, bgStarsMat);
+  scene.add(bgStars);
+
+  // 1. 3D FIBONACCI WIREFRAME SPHERE
+  const fibGroup = new THREE.Group();
+  scene.add(fibGroup);
+
+  const N = 340;
+  const fibPts = [];
+  const ptPositions = new Float32Array(N * 3);
+  const ptColors = new Float32Array(N * 3);
+
+  for (let i = 0; i < N; i++) {
+    const y = 1 - (i / (N - 1)) * 2;
+    const r = Math.sqrt(Math.max(0, 1 - y * y));
+    const th = i * 2.39996;
+    const v = new THREE.Vector3(Math.cos(th) * r * 1.5, y * 1.5, Math.sin(th) * r * 1.5);
+    fibPts.push(v);
+
+    ptPositions[i * 3] = v.x;
+    ptPositions[i * 3 + 1] = v.y;
+    ptPositions[i * 3 + 2] = v.z;
+
+    ptColors[i * 3] = 0.0;
+    ptColors[i * 3 + 1] = 0.9;
+    ptColors[i * 3 + 2] = 1.0;
+  }
+
+  // Nodes
+  const ptGeo = new THREE.BufferGeometry();
+  ptGeo.setAttribute('position', new THREE.BufferAttribute(ptPositions, 3));
+  ptGeo.setAttribute('color', new THREE.BufferAttribute(ptColors, 3));
+  const ptMat = new THREE.PointsMaterial({ size: 0.055, vertexColors: true, transparent: true, opacity: 0.85 });
+  const ptMesh = new THREE.Points(ptGeo, ptMat);
+  fibGroup.add(ptMesh);
+
+  // Wireframe Lines Connection
+  const lineIndices = [];
+  for (let i = 0; i < N; i++) {
+    for (let j = i + 1; j < i + 5 && j < N; j++) {
+      if (fibPts[i].distanceTo(fibPts[j]) < 0.52) {
+        lineIndices.push(i, j);
+      }
+    }
+  }
+
+  const lineGeo = new THREE.BufferGeometry();
+  lineGeo.setAttribute('position', new THREE.BufferAttribute(ptPositions, 3));
+  lineGeo.setIndex(lineIndices);
+  const lineMat = new THREE.LineBasicMaterial({ color: 0x00e5ff, transparent: true, opacity: 0.22, blending: THREE.AdditiveBlending });
+  const lineMesh = new THREE.LineSegments(lineGeo, lineMat);
+  fibGroup.add(lineMesh);
+
+  // Live Threat Arcs
+  const arcCurves = [];
+  const arcMatCyan = new THREE.LineBasicMaterial({ color: 0x00e5ff, transparent: true, opacity: 0.7 });
+  const arcMatOrange = new THREE.LineBasicMaterial({ color: 0xff7a00, transparent: true, opacity: 0.85 });
+
+  for (let k = 0; k < 8; k++) {
+    const p1 = fibPts[Math.floor(Math.random() * N)];
+    const p2 = fibPts[Math.floor(Math.random() * N)];
+    const mid = p1.clone().add(p2).multiplyScalar(0.5).normalize().multiplyScalar(1.95);
+    const curve = new THREE.QuadraticBezierCurve3(p1, mid, p2);
+    const curveGeo = new THREE.BufferGeometry().setFromPoints(curve.getPoints(24));
+    const arcLine = new THREE.Line(curveGeo, k % 3 === 0 ? arcMatOrange : arcMatCyan);
+    fibGroup.add(arcLine);
+    arcCurves.push(arcLine);
+  }
+
+  // 2. CONCENTRIC MULTI-SPECTRUM PLANAR RIPPLE DISCS
+  const ripplePlaneGeo = new THREE.PlaneGeometry(1, 1);
+  const rippleShaderMaterial = (colorVec4) => new THREE.ShaderMaterial({
+    side: THREE.DoubleSide,
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    uniforms: {
+      uColor: { value: colorVec4 },
+      uProgress: { value: 0.0 }
+    },
+    vertexShader: `
+      varying vec2 vUv;
+      void main() {
+        vUv = uv;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: `
+      varying vec2 vUv;
+      uniform vec4 uColor;
+      uniform float uProgress;
+      void main() {
+        vec2 p = vUv * 2.0 - 1.0;
+        float r = length(p);
+        float ring = smoothstep(0.035, 0.0, abs(r - uProgress));
+        float wake = smoothstep(uProgress, 0.0, r) * step(r, uProgress) * 0.45;
+        float alpha = (ring + wake) * (1.0 - uProgress) * uColor.a;
+        gl_FragColor = vec4(uColor.rgb, alpha);
+      }
+    `
+  });
+
+  const planarRipples = [];
+  const rippleColors = [
+    new THREE.Vector4(0.0, 0.9, 1.0, 1.0),   // Electric Cyan
+    new THREE.Vector4(1.0, 0.45, 0.0, 1.0),  // Surtur Flame Orange
+    new THREE.Vector4(1.0, 0.95, 0.85, 1.0), // Solar White Core
+    new THREE.Vector4(0.9, 0.1, 0.2, 0.85),  // Molten Crimson
+    new THREE.Vector4(1.0, 0.8, 0.1, 0.9)    // Plasma Gold
+  ];
+
+  // Exact ~22deg Tilted Horizontal Plane
+  const PLANE_ROTATION_X = Math.PI / 2.35;
+  const PLANE_ROTATION_Y = -Math.PI / 12;
+
+  // 3. COLLAPSING TWILIGHT PIERCING BEAM
+  const beamGeo = new THREE.CylinderGeometry(0.12, 1.0, 32, 32);
+  const beamMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0 });
+  const beamMesh = new THREE.Mesh(beamGeo, beamMat);
+  scene.add(beamMesh);
+
+  let debrisShards = [];
+  let emberParticles;
+  let clickCount = 0;
+  let isExploded = false;
+  let explosionTimer = 0;
+
+  // Exact Mouse Parallax Target Coordinates from baseline
+  const mouse = { x: 0, y: 0, targetX: 0, targetY: 0 };
+  window.addEventListener('pointermove', (e) => {
+    mouse.targetX = (e.clientX / window.innerWidth - 0.5);
+    mouse.targetY = (e.clientY / window.innerHeight - 0.5);
+  });
+
+  function triggerCataclysm() {
+    isExploded = true;
+    scene.remove(fibGroup);
+
+    // Fade out whole UI and lower content smoothly
+    const shell = document.getElementById('hb-shell');
+    const content = document.getElementById('content-wrap');
+    const bloom = document.getElementById('hb-bloom');
+    const scanline = document.getElementById('hb-scanline');
+    const scanlines = document.getElementById('hb-scanlines');
+    const scrollcue = document.getElementById('scrollcue');
+
+    if (shell) { shell.style.opacity = '0'; shell.style.pointerEvents = 'none'; }
+    if (content) { content.style.opacity = '0'; content.style.pointerEvents = 'none'; }
+    if (bloom) { bloom.style.opacity = '0'; }
+    if (scanline) { scanline.style.opacity = '0'; }
+    if (scanlines) { scanlines.style.opacity = '0'; }
+    if (scrollcue) { scrollcue.style.opacity = '0'; }
+
+    // Flash & Max Bloom
+    flashBlind.style.opacity = '1';
+    setTimeout(() => { flashBlind.style.opacity = '0'; }, 130);
+    bloomPass.strength = 7.0;
+
+    // Spawn concentric ripples (25% SLOWER: speed scaled by 0.75)
+    for (let i = 0; i < 8; i++) {
+      const col = rippleColors[i % rippleColors.length];
+      const mat = rippleShaderMaterial(col);
+      const mesh = new THREE.Mesh(ripplePlaneGeo, mat);
+      
+      mesh.rotation.x = PLANE_ROTATION_X;
+      mesh.rotation.y = PLANE_ROTATION_Y;
+      mesh.scale.set(0.1, 0.1, 0.1);
+      
+      mesh.userData = {
+        mat: mat,
+        delay: (i * 0.12) / 0.75,
+        speed: (0.55 + (i * 0.08)) * 0.75,
+        maxSize: 32 + (i * 4)
+      };
+      
+      planarRipples.push(mesh);
+      scene.add(mesh);
+    }
+
+    // Debris shards (25% SLOWER: velocities scaled by 0.75)
+    const shardGeo = new THREE.TetrahedronGeometry(0.14, 1);
+    for (let i = 0; i < 360; i++) {
+      const isFire = Math.random() > 0.4;
+      const shardMat = new THREE.MeshBasicMaterial({
+        color: isFire ? (Math.random() > 0.5 ? 0xff4b00 : 0x00e5ff) : 0x070c14
+      });
+      const shard = new THREE.Mesh(shardGeo, shardMat);
+      
+      const angle = Math.random() * Math.PI * 2;
+      const spreadY = (Math.random() - 0.5) * 0.6;
+      const dir = new THREE.Vector3(Math.cos(angle), spreadY, Math.sin(angle)).normalize();
+
+      shard.position.copy(dir.clone().multiplyScalar(1.4));
+      shard.userData = {
+        vel: dir.multiplyScalar((0.08 + Math.random() * 0.16) * 0.75),
+        rot: new THREE.Vector3(Math.random() * 0.15, Math.random() * 0.15, Math.random() * 0.15)
+      };
+      debrisShards.push(shard);
+      scene.add(shard);
+    }
+
+    // 16,000 High-Speed Embers
+    const pCount = 16000;
+    const pGeo = new THREE.BufferGeometry();
+    const pos = new Float32Array(pCount * 3);
+    const vels = new Float32Array(pCount * 3);
+    const cols = new Float32Array(pCount * 3);
+
+    const cCyan = new THREE.Color(0x00e5ff);
+    const cOrange = new THREE.Color(0xff6a00);
+    const cWhite = new THREE.Color(0xffffff);
+
+    for (let i = 0; i < pCount; i++) {
+      const idx = i * 3;
+      const ang = Math.random() * Math.PI * 2;
+      const speed = (0.04 + Math.random() * 0.28) * 0.75;
+      const yBias = (Math.random() - 0.5) * 0.35;
+
+      pos[idx] = 0; pos[idx+1] = 0; pos[idx+2] = 0;
+      vels[idx] = Math.cos(ang) * speed;
+      vels[idx+1] = yBias * speed * 2.0;
+      vels[idx+2] = Math.sin(ang) * speed;
+
+      const pick = Math.random();
+      const col = pick < 0.33 ? cCyan : (pick < 0.75 ? cOrange : cWhite);
+      cols[idx] = col.r; cols[idx+1] = col.g; cols[idx+2] = col.b;
+    }
+
+    pGeo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    pGeo.setAttribute('color', new THREE.BufferAttribute(cols, 3));
+    pGeo.userData.vels = vels;
+
+    const pMat = new THREE.PointsMaterial({
+      size: 0.045,
+      vertexColors: true,
+      transparent: true,
+      opacity: 1,
+      blending: THREE.AdditiveBlending
+    });
+
+    emberParticles = new THREE.Points(pGeo, pMat);
+    scene.add(emberParticles);
+
+    easterText.innerText = "SURTUR TWILIGHT PROTOCOL // ASGARD CRUSHED";
+    easterText.style.color = "#ff2a00";
+    easterBar.style.background = "#ff2a00";
+  }
+
+  // Pointer Interaction
+  window.addEventListener('pointerdown', (e) => {
+    if (isExploded) return;
+    if (window.scrollY > 200) return;
+
+    clickCount++;
+    const charge = Math.min(1.0, clickCount / 10);
+
+    const colAttr = ptMesh.geometry.attributes.color;
+    for (let i = 0; i < N; i++) {
+      colAttr.setXYZ(i, charge, 0.9 * (1 - charge * 0.5), 1.0 - charge);
+    }
+    colAttr.needsUpdate = true;
+    lineMat.color.setRGB(charge, 0.9 * (1 - charge * 0.5), 1.0 - charge);
+    lineMat.opacity = 0.22 + charge * 0.45;
+
+    easterBar.style.width = `${charge * 100}%`;
+    easterText.innerText = `CORE INSTABILITY: (${clickCount}/10)`;
+
+    camera.position.x = (Math.random() - 0.5) * (0.05 + charge * 0.3);
+    camera.position.y = (Math.random() - 0.5) * (0.05 + charge * 0.3);
+
+    if (clickCount >= 10) {
+      triggerCataclysm();
+    }
+  });
+
+  // Main Animation Loop with Dynamic Mouse Parallax & Roll Reversal
+  const clock = new THREE.Clock();
+  let t = 0;
+
+  function animate() {
+    requestAnimationFrame(animate);
+    const delta = clock.getDelta() * 0.75;
+    t += 0.006 * 0.75;
+
+    // Smooth Lerp of mouse coordinates for realistic inertia
+    mouse.x += (mouse.targetX - mouse.x) * 0.045;
+    mouse.y += (mouse.targetY - mouse.y) * 0.045;
+
+    bgStars.rotation.y += 0.00022;
+
+    if (!isExploded) {
+      // Dynamic mouse parallax rotation: moving mouse left/right accelerates or reverses spin
+      fibGroup.rotation.y = (t * 0.28 + mouse.x * 0.8);
+      fibGroup.rotation.x = (-0.28 + mouse.y * 0.4);
+
+      camera.position.x += (0 - camera.position.x) * 0.09;
+      camera.position.y += (0 - camera.position.y) * 0.09;
+    } else {
+      explosionTimer += delta;
+
+      bloomPass.strength = Math.max(1.2, bloomPass.strength - delta * 3.15);
+
+      if (explosionTimer < 0.35) {
+        beamMat.opacity = Math.min(1.0, beamMat.opacity + delta * 6.0);
+        beamMesh.scale.x += delta * 9.0;
+        beamMesh.scale.z += delta * 9.0;
+      } else {
+        beamMat.opacity = Math.max(0.0, beamMat.opacity - delta * 2.0);
+        beamMesh.scale.x = Math.max(0.0, beamMesh.scale.x - delta * 8.0);
+        beamMesh.scale.z = Math.max(0.0, beamMesh.scale.z - delta * 8.0);
+      }
+
+      planarRipples.forEach(r => {
+        if (explosionTimer > r.userData.delay) {
+          const prog = (explosionTimer - r.userData.delay) * r.userData.speed;
+          if (prog <= 1.0) {
+            r.userData.mat.uniforms.uProgress.value = prog;
+            const currentScale = prog * r.userData.maxSize;
+            r.scale.set(currentScale, currentScale, 1.0);
+          } else {
+            r.visible = false;
+          }
+        }
+      });
+
+      debrisShards.forEach(shard => {
+        shard.position.add(shard.userData.vel);
+        shard.rotation.x += shard.userData.rot.x;
+        shard.rotation.y += shard.userData.rot.y;
+        shard.scale.multiplyScalar(0.994);
+      });
+
+      if (emberParticles) {
+        const pArr = emberParticles.geometry.attributes.position.array;
+        const vArr = emberParticles.geometry.userData.vels;
+        for (let i = 0; i < pArr.length; i++) {
+          pArr[i] += vArr[i];
+          vArr[i] *= 0.986;
+        }
+        emberParticles.geometry.attributes.position.needsUpdate = true;
+        emberParticles.material.opacity = Math.max(0.0, emberParticles.material.opacity - delta * 0.24);
+      }
+    }
+
+    composer.render();
+  }
+
+  window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    composer.setSize(window.innerWidth, window.innerHeight);
+  });
+
+  animate();
+</script>
+
+<!-- UFO CURSOR ENGINE -->
+<script>
+(function(){
+  if (innerWidth < 760) return;
+  var reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  var ufo = document.createElement('div');
+  ufo.setAttribute('aria-hidden','true');
+  ufo.style.cssText = 'position:fixed;left:0;top:0;z-index:2147483000;pointer-events:none;width:70px;height:44px;margin-left:-35px;margin-top:-22px;will-change:transform;filter:drop-shadow(0 8px 16px rgba(60,200,230,.55))';
+  ufo.innerHTML =
+    '<svg width="70" height="44" viewBox="0 0 70 44">' +
+      '<defs>' +
+        '<radialGradient id="ufoDome" cx="0.5" cy="0.36" r="0.62"><stop offset="0" stop-color="#e6feff"/><stop offset="1" stop-color="#22b8cf"/></radialGradient>' +
+        '<linearGradient id="ufoBody" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#22384a"/><stop offset="1" stop-color="#0a0f18"/></linearGradient>' +
+      '</defs>' +
+      '<path d="M35 28 L22 44 L48 44 Z" fill="rgba(120,225,240,0.16)"/>' +
+      '<ellipse cx="35" cy="26" rx="32" ry="9.5" fill="url(#ufoBody)" stroke="#39c9de" stroke-width="1"/>' +
+      '<path d="M20 24 A17 13 0 0 1 50 24 Z" fill="url(#ufoDome)"/>' +
+      '<circle cx="15" cy="26" r="2.2" fill="#7fe9ff"/><circle cx="35" cy="30" r="2.2" fill="#7fe9ff"/><circle cx="55" cy="26" r="2.2" fill="#7fe9ff"/>' +
+    '</svg>';
+  document.body.appendChild(ufo);
+
+  var x=innerWidth/2, y=innerHeight/2, tx=x, ty=y, px=x, ang=0, last=0;
+  addEventListener('pointermove', function(e){ tx=e.clientX; ty=e.clientY; });
+
+  function loop(ts){
+    x += (tx-x)*0.16; y += (ty-y)*0.16;
+    var vx = x - px; px = x;
+    var target = Math.max(-20, Math.min(20, vx*1.3));
+    ang += (target - ang) * 0.15;
+    var bob = reduce ? 0 : Math.sin(ts*0.004)*3;
+    ufo.style.transform = 'translate('+x+'px,'+(y+bob)+'px) rotate('+ang+'deg)';
+    if (!reduce && ts-last > 38 && Math.hypot(vx, ty-y) > 0.6){
+      last = ts;
+      var t = document.createElement('div');
+      t.style.cssText = 'position:fixed;z-index:2147482999;pointer-events:none;width:6px;height:6px;border-radius:50%;background:rgba(130,230,245,.75);box-shadow:0 0 9px rgba(130,230,245,.8);left:'+(x-3)+'px;top:'+(y+9)+'px';
+      document.body.appendChild(t);
+      t.animate([{opacity:.75,transform:'scale(1)'},{opacity:0,transform:'scale(.3) translateY(16px)'}],{duration:620,easing:'ease-out'});
+      setTimeout(function(){ t.remove(); }, 640);
+    }
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+
+  addEventListener('pointerdown', function(e){
+    var r = document.createElement('div');
+    r.style.cssText = 'position:fixed;z-index:2147482999;pointer-events:none;width:14px;height:14px;margin-left:-7px;margin-top:-7px;border-radius:50%;border:2px solid rgba(130,230,245,.85);box-shadow:0 0 12px rgba(130,230,245,.6);left:'+e.clientX+'px;top:'+e.clientY+'px';
+    document.body.appendChild(r);
+    r.animate([{opacity:.9,transform:'scale(.3)'},{opacity:0,transform:'scale(4.2)'}],{duration:520,easing:'ease-out'});
+    setTimeout(function(){ r.remove(); }, 540);
+  });
+})();
+</script>
+</body>
+</html>

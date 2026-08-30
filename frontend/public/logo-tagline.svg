@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 380 90" width="100%" height="100%">
+  <defs>
+    <linearGradient id="wmGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="70%" stop-color="#E1EFFF"/>
+      <stop offset="100%" stop-color="#00E5FF"/>
+    </linearGradient>
+    <linearGradient id="dotGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFB300"/>
+      <stop offset="100%" stop-color="#FF3D00"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Typography -->
+  <text x="0" y="52" 
+        font-family="system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif" 
+        font-size="56" 
+        font-weight="800" 
+        letter-spacing="-1.8" 
+        fill="url(#wmGradient)">harbor<tspan fill="#00E5FF">e</tspan></text>
+
+  <!-- Pulse Status Dot above the final 'e' -->
+  <circle cx="204" cy="18" r="3.5" fill="url(#dotGrad)"/>
+
+  <!-- Subtitle / Meta Description -->
+  <text x="3" y="76" 
+        font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" 
+        font-size="10.5" 
+        font-weight="700" 
+        letter-spacing="4" 
+        fill="#4A688F">CYBERSECURITY PLATFORM</text>
+</svg>
