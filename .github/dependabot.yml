@@ -1,0 +1,65 @@
+# Dependabot version updates — keeps dependencies current across all of harbore.
+# Security-only bumps are handled separately by "Dependabot security updates"
+# (enable that in Settings → Code security); this file also picks up
+# non-security updates on a weekly cadence.
+version: 2
+updates:
+  # ── Go services ──────────────────────────────────────────────
+  - package-ecosystem: "gomod"
+    directory: "/orchestrator"
+    schedule: { interval: "weekly" }
+    open-pull-requests-limit: 10
+    groups:
+      go-deps:
+        patterns: ["*"]
+
+  - package-ecosystem: "gomod"
+    directory: "/worker"
+    schedule: { interval: "weekly" }
+    open-pull-requests-limit: 10
+    groups:
+      go-deps:
+        patterns: ["*"]
+
+  # ── Python services ──────────────────────────────────────────
+  - package-ecosystem: "pip"
+    directory: "/ai"
+    schedule: { interval: "weekly" }
+    open-pull-requests-limit: 10
+
+  - package-ecosystem: "pip"
+    directory: "/report"
+    schedule: { interval: "weekly" }
+    open-pull-requests-limit: 10
+
+  # ── Frontend ─────────────────────────────────────────────────
+  - package-ecosystem: "npm"
+    directory: "/frontend"
+    schedule: { interval: "weekly" }
+    open-pull-requests-limit: 10
+    groups:
+      npm-deps:
+        patterns: ["*"]
+
+  # ── Docker base images ───────────────────────────────────────
+  # One entry per Dockerfile location.
+  - package-ecosystem: "docker"
+    directory: "/orchestrator"
+    schedule: { interval: "weekly" }
+  - package-ecosystem: "docker"
+    directory: "/worker"
+    schedule: { interval: "weekly" }
+  - package-ecosystem: "docker"
+    directory: "/ai"
+    schedule: { interval: "weekly" }
+  - package-ecosystem: "docker"
+    directory: "/report"
+    schedule: { interval: "weekly" }
+  - package-ecosystem: "docker"
+    directory: "/frontend"
+    schedule: { interval: "weekly" }
+
+  # ── GitHub Actions workflows ─────────────────────────────────
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule: { interval: "weekly" }
