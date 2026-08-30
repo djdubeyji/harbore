@@ -56,7 +56,7 @@ jobs:
           set -e
           for m in orchestrator worker; do
             echo "::group::building $m"
-            (cd "$m" && go build ./...)
+            ( cd "$m" && go mod download all && go build ./... )
             echo "::endgroup::"
           done
 
